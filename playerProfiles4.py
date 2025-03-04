@@ -24,9 +24,6 @@ minorsdata25 = pd.read_csv('{}/hit_minors_advanced25.csv'.format(file_path))
 majorsdata24 = pd.read_csv('{}/hit_majors_advanced24.csv'.format(file_path))
 majorsdata25 = pd.read_csv('{}/hit_majors_advanced25.csv'.format(file_path))
 
-# skill data MAKE SURE THESE ARE UPDATED FOR 2025, THE FILE LOCATION WILL CHANGE
-hit_skill_data = pd.read_csv('{}/HitterSkillData.csv'.format(file_path))
-
 # fScores from Tim (need to hook this up so his updates are taken live)
 fscores_h = pd.read_csv('{}/fScoresHit.csv'.format(file_path))
 
