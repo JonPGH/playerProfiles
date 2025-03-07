@@ -8,39 +8,78 @@ from plotly.subplots import make_subplots
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
+
 st.set_page_config(
     page_title="MLB DW Player Pages",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# DATA LOAD BLOCK
 base_dir = os.path.dirname(__file__)
 file_path = os.path.join(base_dir, 'Data')
-
-# Data Load
-minorsdata24 = pd.read_csv(f'{file_path}/hit_minors_advanced24.csv')
-minorsdata25 = pd.read_csv(f'{file_path}/hit_minors_advanced25.csv')
-majorsdata24 = pd.read_csv(f'{file_path}/hit_majors_advanced24.csv')
-majorsdata25 = pd.read_csv(f'{file_path}/hit_majors_advanced25.csv')
 hprojections = pd.read_csv(f'{file_path}/ja_h.csv')
 pprojections = pd.read_csv(f'{file_path}/ja_p.csv')
 fscores_h = pd.read_csv(f'{file_path}/fScoresHit.csv')
 hitlogs = pd.read_csv(f'{file_path}/hitdb25.csv').sort_values(by='game_date', ascending=False)
+pitchlogs = pd.read_csv(f'{file_path}/pitdb25.csv').sort_values(by='game_date', ascending=False)
+
 ids_zip = pd.read_csv(f'{file_path}/zips_ids.csv')
 ids_zip['MLBID'] = ids_zip['MLBID'].astype(str)
 ids_zip['FGID'] = ids_zip['FGID'].astype(str)
+fscores_hit = pd.read_csv(f'{file_path}/fscoresHit.csv')
+fscores_pitch = pd.read_csv(f'{file_path}/fscoresPitch.csv')
 
-# Custom CSS for modern styling
+hskills = pd.read_csv(f'{file_path}/HitterSkillData.csv')
+pitchskills = pd.read_csv(f'{file_path}/PitcherSkillData.csv')
+
+milbsav25 = pd.read_csv(f'{file_path}/hit_minors_advanced25.csv')
+milbsav25['Year']='2025'
+milbsav24 = pd.read_csv(f'{file_path}/hit_minors_advanced24.csv')
+milbsav24['Year']='2024'
+milbsav = pd.concat([milbsav25,milbsav24])
+
+try:
+    pmix_mlb_24 = pd.read_csv(f'{file_path}/pitch_mix_mlb_24.csv')
+    pmix_mlb_24['Season'] = '2024'
+    pmix_mlb_25 = pd.read_csv(f'{file_path}/pitch_mix_mlb_25.csv')
+    pmix_mlb_25['Season'] = '2025'
+    pmix_mlb = pd.concat([pmix_mlb_24,pmix_mlb_25])
+
+except:
+    pmix_mlb_24 = pd.read_csv(f'{file_path}/pitch_mix_mlb_24.csv')
+    pmix_mlb_24['Season'] = '2024'
+    pmix_mlb = pmix_mlb_24.copy()
+
+pmix_milb_24 = pd.read_csv(f'{file_path}/pitch_mix_milb_24.csv')
+pmix_milb_24['Season'] = '2024'
+
+pmix_milb_25 = pd.read_csv(f'{file_path}/pitch_mix_milb_25.csv')
+pmix_milb_25['Season'] = '2025'
+
+pmix_milb = pd.concat([pmix_milb_24,pmix_milb_25])
+
+# CSS BLOCK
 st.markdown("""
     <style>
-            
-    /* Target all dataframe tables */
+    /* Reduce padding at the top of the main content area */
+    .main .block-container {
+        padding-top: 0px !important;  /* Remove top padding */
+    }
+
+    /* Optional: Adjust the overall app padding */
+    .css-1d391kg {
+        padding-top: 0px !important;  /* Targets the main app container */
+    }
+
+    /* Existing styles */
     .stDataFrame table {
-        width: 100%;  /* Optional: adjust width if needed */
+        width: 100%;
     }
     .stDataFrame td {
-        text-align: center !important;  /* Center-align all table cells */
+        text-align: center !important;
     }
+
     .main {
         background-color: #f8f9fa;
         padding: 20px;
@@ -66,10 +105,9 @@ st.markdown("""
         border-radius: 10px;
         margin: 10px 0;
     }
-    .sidebar .sidebar-content {
-        background-color: #2c3e50;
-        color: white;
-        padding: 20px;
+    [data-testid="stSidebar"] {
+        background-color: #9fa5a6;
+        color: #e80927;
     }
     .stDataFrame {
         width: 100% !important;
@@ -88,125 +126,7 @@ st.markdown("""
 @st.cache_data
 def load_player_data():
     return pd.read_csv('https://docs.google.com/spreadsheets/d/1JgczhD5VDQ1EiXqVG-blttZcVwbZd5_Ne_mefUGwJnk/export?format=csv&gid=0')
-
 playerinfo = load_player_data()
-
-def getProjection(check_pos, playername):
-    if check_pos == 'Hitter':
-        this_proj = hprojections[hprojections['Player'].str.contains(playername)]
-        this_proj = this_proj[['Player','Team','PA','R','HR','RBI','SB','AVG','OBP','SLG','OPS']]
-    else:
-        this_proj = pprojections[pprojections['Pitcher'].str.contains(playername)]
-        this_proj = this_proj[['Pitcher','Team','GS','IP','ERA','WHIP','K%','BB%','GB%']]
-
-    return(this_proj)
-
-
-def getGameLogs(mlbid):
-    plog = hitlogs[hitlogs['player_id'] == mlbid]
-    plog = plog[['Player', 'game_date', 'game_type', 'level', 'team_abbrev', 'opp_abbrev', 'AB', 'H', 'R', 'HR', 'RBI', '2B', '3B', 'SB', 'DKPts']].head(15)
-    plog.columns = ['Player', 'Date', 'Type', 'Level', 'Team', 'Opp', 'AB', 'H', 'R', 'HR', 'RBI', '2B', '3B', 'SB', 'DKPts']
-    return plog
-
-def loadFScores(player_name):
-    player_fscore = fscores_h[fscores_h['Name'] == player_name]
-    return player_fscore
-
-def loadAdvData(mlbid):
-    psav24 = minorsdata24[minorsdata24['batter'] == mlbid]
-    psav24['Year'] = '2024'
-    psav25 = minorsdata25[minorsdata25['batter'] == mlbid]
-    psav25['Year'] = '2025'
-    psav = pd.concat([psav24, psav25])
-    psav_minors = psav.copy()
-    psav_minors['Level'] = 'Minors'
-
-    psav24 = majorsdata24[majorsdata24['batter'] == mlbid]
-    psav24['Year'] = '2024'
-    psav25 = majorsdata25[majorsdata25['batter'] == mlbid]
-    psav25['Year'] = '2025'
-    psav = pd.concat([psav24, psav25])
-    psav_majors = psav.copy()
-    psav_majors['Level'] = 'MLB'
-
-    psav = pd.concat([psav_minors, psav_majors])
-    return psav
-
-def create_stat_gauges(fContact, fPower, fSpeed, fDiscipline):
-    fig = make_subplots(
-        rows=2, cols=2,
-        specs=[[{'type': 'indicator'}, {'type': 'indicator'}],
-               [{'type': 'indicator'}, {'type': 'indicator'}]],
-        vertical_spacing=0
-    )
-
-    gauge_config = {
-        'axis': {'range': [0, 200], 'tickwidth': 1, 'tickcolor': "darkblue", 'nticks': 5, 'showticklabels': True},
-        'bar': {'color': "#FFFFFF", 'thickness': 0.2},
-        'bgcolor': "blue",
-        'borderwidth': 2,
-        'bordercolor': "red",
-        'steps': [
-            {'range': [0, 50], 'color': 'black'},
-            {'range': [50, 100], 'color': 'black'},
-            {'range': [100, 150], 'color': 'black'},
-            {'range': [150, 200], 'color': 'black'}
-        ],
-        'threshold': {'line': {'color': "blue", 'width': 4}, 'thickness': 0.75, 'value': 100}
-    }
-
-    fig.add_trace(go.Indicator(mode="gauge+number", value=fContact, title={'text': "Contact", 'font': {'size': 16}}, 
-                              gauge=gauge_config, number={'font': {'size': 30}}), row=1, col=1)
-    fig.add_trace(go.Indicator(mode="gauge+number", value=fPower, title={'text': "Power", 'font': {'size': 16}}, 
-                              gauge=gauge_config, number={'font': {'size': 30}}), row=1, col=2)
-    fig.add_trace(go.Indicator(mode="gauge+number", value=fSpeed, title={'text': "Speed", 'font': {'size': 16}}, 
-                              gauge=gauge_config, number={'font': {'size': 30}}), row=2, col=1)
-    fig.add_trace(go.Indicator(mode="gauge+number", value=fDiscipline, title={'text': "Discipline", 'font': {'size': 16}}, 
-                              gauge=gauge_config, number={'font': {'size': 30}}), row=2, col=2)
-
-    fig.update_layout(
-        height=400, width=400, margin=dict(t=50, b=50, l=50, r=50),
-        title_text="Tim Kanak fScores (League Average = 100)", title_x=0.14, title_font_size=15,
-        grid={'rows': 2, 'columns': 2, 'pattern': "independent"}
-    )
-    return fig
-
-def get_player_id(player_name):
-    try:
-        if player_name[0] == '6':
-            pid = int(player_name)
-            player_rows = playerinfo[playerinfo['MLBID'] == pid]
-        else:
-            player_rows = playerinfo[playerinfo['PLAYERNAME'].str.contains(player_name, case=False)]
-        
-        if len(player_rows) == 0:
-            player_rows = ids_zip[ids_zip['Name'].str.contains(player_name, case=False)]
-            if len(player_rows) == 1:
-                mlbid = int(player_rows['MLBID'].iloc[0])
-                fgid = player_rows['FGID'].iloc[0]
-                return {'MLBID': mlbid, 'FGID': fgid}, None
-            elif len(player_rows) > 1:
-                show_multiple = player_rows[['PLAYERNAME', 'TEAM', 'POS', 'MLBID']]
-                show_multiple['MLBID'] = show_multiple['MLBID'].astype(str)
-                show_multiple['MLBID'] = show_multiple['MLBID'].replace('.0', '')
-                st.dataframe(show_multiple)
-                return None, f'{len(player_rows)} players found, choose an MLBID above and search that'
-        
-        elif len(player_rows) > 1:
-            show_multiple = player_rows[['PLAYERNAME', 'TEAM', 'POS', 'MLBID']]
-            show_multiple['MLBID'] = show_multiple['MLBID'].astype(str)
-            show_multiple['MLBID'] = show_multiple['MLBID'].replace('.0', '')
-            st.dataframe(show_multiple)
-            return None, f'{len(player_rows)} players found, choose an MLBID above and search that'
-        else:
-            mlbid = int(player_rows['MLBID'].iloc[0])
-            fgid = player_rows['IDFANGRAPHS'].iloc[0]
-            return {'MLBID': mlbid, 'FGID': fgid}, None
-    except Exception as e:
-        return None, f"Error finding player: {e}"
-
-def get_player_image(player_id):
-    return f'https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_426,q_auto:best/v1/people/{player_id}/headshot/67/current'
 
 @st.cache_data
 def get_mlb_player_info(player_id):
@@ -228,6 +148,39 @@ def get_mlb_player_info(player_id):
         }
     except Exception as e:
         return None
+
+def get_player_id(name_submission):
+    # check if they entered a number
+    check_if_number = name_submission[0].isdigit()
+    if check_if_number:
+        id_submission = int(name_submission)
+        #st.write('User entered a number, I need to write more code')
+        player_rows = playerinfo[playerinfo['MLBID']==id_submission]
+        return(player_rows)
+        # Number entered, move forward
+
+    else:
+        # Name entered, move forward
+        player_rows = playerinfo[playerinfo['PLAYERNAME'].str.contains(name_submission, case=False)]
+        if len(player_rows) == 1:
+            # found exactly one name, we can return it
+            return(player_rows)
+        elif len(player_rows) < 1:
+            # found nobody, search ZIPS file
+            zips_rows = ids_zip[ids_zip['Name'].str.contains(name_submission, case=False)]
+            player_rows = pd.DataFrame({'PLAYERNAME': zips_rows['Name'].iloc[0], 
+                                        'MLBID': zips_rows['MLBID'].iloc[0],
+                                        'FANGRAPHSID': zips_rows['FGID'].iloc[0]},index=[0])
+
+            return(player_rows)
+        elif len(player_rows) > 1:
+            # More than one found, generating options for the user to select
+            options = player_rows[['PLAYERNAME', 'TEAM', 'POS', 'MLBID']].copy()
+            options['MLBID'] = options['MLBID'].astype(str).str.replace('.0', '')
+            return(options)
+
+def get_player_image(player_id):
+    return f'https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_426,q_auto:best/v1/people/{player_id}/headshot/67/current'
 
 def scrapeFG_pitchers(fgid):
     fgurl = f'https://www.fangraphs.com/api/players/stats?playerid={fgid}&position=P'
@@ -254,6 +207,9 @@ def scrapeFG_pitchers(fgid):
         so = x.get('SO')
         bb = x.get('BB')
 
+        era = x.get('ERA')
+        whip = x.get('WHIP')
+
         krate = so / tbf
         bbrate = bb / tbf
         kbbrate = krate - bbrate
@@ -263,17 +219,31 @@ def scrapeFG_pitchers(fgid):
         kbbrate = f"{kbbrate:.3f}"
 
         siera = x.get('SIERA')
-        siera = '--' if siera is None else round(siera, 2)
+        siera = 0 if siera is None else round(siera, 2)
         xfip = x.get('xFIP')
-        xfip = '--' if xfip is None else round(xfip, 2)
+        xfip = 0 if xfip is None else round(xfip, 2)
         vfa = x.get('pivFA')
-        vfa = '--' if vfa is None else round(vfa, 2)
+        vfa = 0 if vfa is None else round(vfa, 2)
         stuffplus = x.get('sp_stuff')
-        stuffplus = '--' if stuffplus is None else round(stuffplus, 1)
+        stuffplus = 0 if stuffplus is None else round(stuffplus, 1)
+        
+        brlrate = x.get('Barrel%')
+        hardhit = x.get('HardHit%')
+        xera = x.get('xERA')
+        zonerate = x.get('pfxZone%')
+        war = x.get('WAR')
+        lob = x.get('LOB%')
+        avg = x.get('AVG')
+        swstr = x.get('SwStr%')
+        #pitches = x.get('Pitches')
+        #strikes = x.get('Strikes')
+        #strikerate = round(float(strikes)/float(pitches),3)
 
         these_df = pd.DataFrame({
             'Season': str(season), 'Team': teamshort, 'Level': level, 'Age': seasonage, 'G': g, 'GS': gs, 'IP': ip, 
-            'W': w, 'K%': krate, 'BB%': bbrate, 'K-BB%': kbbrate, 'SIERA': siera, 'xFIP': xfip, 'vFA': vfa, 'Stuff+': stuffplus
+            'W': w, 'K%': krate, 'BB%': bbrate, 'K-BB%': kbbrate, 'SIERA': siera, 'xFIP': xfip, 'vFA': vfa, 'Stuff+': stuffplus,
+            'ERA': era, 'WHIP': whip, 'SO': so, 'BB': bb, 'Brl%': brlrate, 'Hard%': hardhit, 'xERA': xera, 
+            'Zone%': zonerate, 'WAR': war, 'LOB%': lob, 'AVG': avg, 'SwStr%': swstr
         }, index=[0])
         build_df = pd.concat([build_df, these_df])
     return build_df
@@ -304,14 +274,19 @@ def scrapeFG_hitters(fgid):
         triples = x.get('3B')
         homers = x.get('HR')
         strikeouts = x.get('SO')
+        sb = x.get('SB')
         walks = x.get('BB')
         hbp = x.get('HBP')
         sh = x.get('SH')
         sf = x.get('SF')
+        pullrate = x.get('Pull%')
+
         krate = f"{round(strikeouts / pa, 3):.3f}"
         bbrate = f"{round(walks / pa, 3):.3f}"
         swstr = x.get('SwStr%')
         swingrate = x.get('pfxSwing%')
+        zoneswing = x.get('Z-Swing%')
+        oswing = x.get('O-Swing%')
         contactrate = x.get('pfxContact%')
         hits = singles + doubles + triples + homers
         r = x.get('R')
@@ -325,128 +300,489 @@ def scrapeFG_hitters(fgid):
         contactrate = f"{contactrate:.3f}" if contactrate else '--'
         swstr = f"{swstr:.3f}" if swstr else '--'
 
+
+        bbe = x.get('Events')
+        barrels = x.get('Barrels')
+        brlrate = x.get('Barrel%')
+        maxev = x.get('maxEV')
+        hardhit = x.get('HardHit%')
+        contactrate = x.get('Contact%')
+
+        xavg = x.get('xAVG')
+        xslg = x.get('xSLG')
+        xwoba = x.get('xwOBA')
+        ev = x.get('EV')
+        la = x.get('LA')
+
+        hrfb = x.get('HR/FB')
+        gbrate = x.get('GB%')
+        fbrate = x.get('FB%')
+        ldrate = x.get('LD%')
+
+        babip = x.get('BABIP')
+
         these_df = pd.DataFrame({
             'Season': str(season), 'Team': teamshort, 'Level': level, 'Age': seasonage, 'G': g, 'AB': ab, 
-            'AVG': avg, 'OBP': obp, 'SLG': slg, 'OPS': ops, 'HR': homers, 'R': r, 'RBI': rbi,
-            'K%': krate, 'BB%': bbrate, 'SwStr%': swstr, 'Cont%': contactrate, 'Swing%': swingrate, 'wRC+': wrc
+            'AVG': avg, 'OBP': obp, 'SLG': slg, 'OPS': ops, 'HR': homers, 'R': r, 'RBI': rbi, 'SB': sb,
+            'K%': krate, 'BB%': bbrate, 'SwStr%': swstr, 'Cont%': contactrate, 'Swing%': swingrate, 'wRC+': wrc,
+            'Brls': barrels, 'Brl%': brlrate, 'MaxEV': maxev, 'Hard%': hardhit, 'xBA': xavg, 'xSLG': xslg,
+            'xwOBA': xwoba, 'BBE': bbe, 'EV': ev, 'LA': la,  'HR/FB': hrfb, 'GB%': gbrate,
+            'LD%': ldrate, 'FB%': fbrate, 'BABIP': babip, 'Pull%': pullrate, 'ZoneSwing%': zoneswing, 'Chase%': oswing,
         }, index=[0])
         build_df = pd.concat([build_df, these_df])
     return build_df
 
+def create_gauge_chart(stat_name, player_value, league_avg):
+    """
+    Create a gauge chart comparing player's stat to league average
+    
+    Parameters:
+    stat_name (str): Name of the statistic
+    player_value (float): Player's value for the stat
+    league_avg (float): League average for the stat
+    """
+    
+    # Calculate the gauge range (make it symmetric around league average)
+    max_range = max(player_value, league_avg) * 1.5  # 50% buffer beyond max value
+    min_range = min(player_value, league_avg) * 0.5   # 50% buffer below min value
+    
+    # Create gauge chart
+    player_value = round(player_value,3)
+    league_avg = round(league_avg,3)
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=player_value,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': stat_name, 'font': {'size': 20}},
+        gauge={
+            'axis': {
+                'range': [min_range, max_range],
+                'tickwidth': 1,
+                'tickcolor': "darkblue"
+            },
+            'bar': {'color': "#1f77b4"},  # Blue needle
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "gray",
+            'steps': [
+                {'range': [min_range, league_avg * 0.9], 'color': '#ff9999'},  # Red below avg
+                {'range': [league_avg * 0.9, league_avg * 1.1], 'color': '#ffff99'},  # Yellow near avg
+                {'range': [league_avg * 1.1, max_range], 'color': '#99ff99'}  # Green above avg
+            ],
+            'threshold': {
+                'line': {'color': "black", 'width': 4},
+                'thickness': .75,
+                'value': league_avg
+            }
+        }
+    ))
+
+    # Update layout
+    fig.update_layout(
+        height=250,
+        width=250,
+        font={'size': 15}
+    )
+
+    # Display in Streamlit
+    st.plotly_chart(fig, use_container_width=False)
+
 def main():
     with st.sidebar:
         st.markdown("<h2 style='color: black; font-weight: 700;'>MLB Player Lookup</h2>", unsafe_allow_html=True)
-        name_input = st.text_input("Search Player", placeholder="Enter player name or MLBID...", 
-                                 help="Enter a name or MLBID to view player stats")
-        st.markdown("<p style='color: #575654;'>Search for any MLB player to see detailed stats</p>", 
+        name_input = st.text_input("Search Player", placeholder="Enter player name", 
+                                 help="Enter a player name")
+        st.markdown("<p style='color: #575654;'><b>Search for any MLB player to see detailed stats</b></p>", 
                    unsafe_allow_html=True)
 
-    st.markdown("<h1 class='title'>MLB Data Warehouse Player Lookup</h1>", unsafe_allow_html=True)
 
+    st.markdown("<h1 class='title'>MLB Data Warehouse Player Lookup</h1>", unsafe_allow_html=True)
     if name_input:
         with st.spinner("Loading player data..."):
-            result, error = get_player_id(name_input)
+            result = get_player_id(name_input)
+            # If no players were found
+            if result is None:
+                st.write('No players were find, please search again.')
+            # If multiple results, have them select an option
+            elif len(result)>1:
+                player_options = [
+                    f"{row['PLAYERNAME']} ({row['TEAM']}, {row['POS']}) - MLBID: {row['MLBID']}"
+                    for _, row in result.iterrows()
+                ]
+                selected_option = st.selectbox("Found multiple results, please select who you're looking for:", player_options)
+                selected_mlbid = selected_option.split("MLBID: ")[-1]
+                st.write(f'Enter {selected_mlbid} in the search to hide this box')
+                result = get_player_id(selected_mlbid)
+            else:
+                pass
+                
+            #st.dataframe(result)
 
-            if error:
-                st.error(error)
-            elif result:
-                mlbid = result['MLBID']
-                fgid = result['FGID']
-                player_data = get_mlb_player_info(mlbid)
+            # Get Player IDs
+            mlbid = result['MLBID'].iloc[0]
+            mlbid = int(mlbid)
+            try:
+                fgid = result['IDFANGRAPHS'].iloc[0]
+            except:
+                fgid = result['FANGRAPHSID'].iloc[0]
+            # Get Player Data from MLB API
+            player_data = get_mlb_player_info(mlbid)
+            playerName = player_data['fullName']
 
-                pinfo_pos = player_data['position']
-                if pinfo_pos == 'Pitcher':
-                    check_pos = 'Pitcher'
-                else:
-                    check_pos = 'Hitter'
-                posdict = {'Outfielder': 'OF', 'Second Base': '2B','Third Base': '3B', 'Shortstop': 'SS', 'Catcher': 'C', 'First Base': '1B'}
-                showpos = posdict.get(pinfo_pos)
-                if showpos is None:
-                    showpos = pinfo_pos
+            player_mlb_position = player_data['position']
+            #st.write(player_mlb_position)
+            if player_mlb_position == 'Pitcher':
+                player_position = 'Pitcher'
+                print_position = 'P'
+            else:
+                player_position = 'Hitter'
+                posdict = {'Outfield': 'OF', 'Outfielder': 'OF', 'Second Base': '2B','Third Base': '3B', 'Shortstop': 'SS', 'Catcher': 'C', 'First Base': '1B'}
+                print_position = posdict.get(player_mlb_position)
+            
+            #st.write(f'Working with a {player_position}, more specifically a {print_position}')
+            if player_data:
+                with st.container():
+                    st.markdown("<div class='player-card'>", unsafe_allow_html=True)
+                    col1, col2 = st.columns([1, 5], gap="small")
+                    with col1:
+                        #st.markdown(f'<h4>{playerName} ({print_position})', unsafe_allow_html=True)
+                        st.markdown("<br>", unsafe_allow_html=True)
 
-                if player_data:
-                    with st.container():
-                        st.markdown("<div class='player-card'>", unsafe_allow_html=True)
-                        col1, col2 = st.columns([1, 4], gap="small")
+                        st.image(get_player_image(mlbid), width=185)#, caption=player_data['fullName'])
+                        st.markdown(f"""<center><div style='line-height: 1.6; color: #2c3e50;'> <font size='1' face='Helvetica'><i>
+                                <b>{player_data['height']} | 
+                                {player_data['weight']}lbs | Bats {player_data['bats'][0:1]} | Throws {player_data['throws'][0:1]} </b></center></font>
+                            </div>
+                        """, unsafe_allow_html=True)
                         
-                        with col1:
-                            st.image(get_player_image(mlbid), width=200)#, caption=player_data['fullName'])
-                            st.markdown(f"""<div style='line-height: 1.6; color: #2c3e50;'> <font size='2' face='Helvetica'><i>
-                                    <b>{player_data['height']} | 
-                                    {player_data['weight']}lbs | Bats {player_data['bats'][0:1]} | Throws {player_data['throws'][0:1]} </b></font>
-                                </div>
-                            """, unsafe_allow_html=True)
 
-                        with col2:
-                            st.subheader(player_data['fullName'] + f' ({showpos})', anchor=False)
-                            tab1, tab2, tab3, tab4 = st.tabs(["Season Stats", "Splits", "Statcast", "Game Log"])
+                    with col2:
+                        #st.subheader(player_data['fullName'] + f' ({print_position})', anchor=False)
+                        st.markdown(f'<h4>{playerName} ({print_position})', unsafe_allow_html=True)
+
+                        if player_position == 'Hitter':
+                            fg_stats = scrapeFG_hitters(fgid)
+                            fg_stats['K%'] = pd.to_numeric(fg_stats['K%'])
+                            fg_stats['BB%'] = pd.to_numeric(fg_stats['BB%'])
+                            # Determine the level
+                            stat_recent = fg_stats[fg_stats['Season'].isin(['2023','2024','2025'])]
+                            stat_recent['Season'] = stat_recent['Season'].astype(int)
+                            most_recent = stat_recent[stat_recent['Season']==np.max(stat_recent['Season'])]
+
+                            level_assign = most_recent.sort_values(by='AB',ascending=False)['Level'].iloc[0]
+                            if level_assign == 'MLB':
+                                player_level = 'MLB'
+                                ## GENERATE DATA FOR MLB PLAYERS
+                                tab1, tab2, tab3, tab4, tab5 = st.tabs(['Standard Data','Advanced','Statcast','Player History', 'Game Log'])
+                                with tab1:
+                                    showcols = ['Season','Team','G','AB','R','HR','RBI','SB','AVG','SLG','OPS','K%','BB%','wRC+']
+                                    df_to_print = fg_stats[fg_stats['Season'].isin(['2025','2024','2023'])][showcols]
+                                    df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                    styled_df = df_to_print.style.format({'AVG': '{:.3f}','OBP': '{:.3f}','SLG': '{:.3f}',
+                                                                          'OPS': '{:.3f}','K%': '{:.3f}','BB%': '{:.3f}',
+                                                                          'wRC+': '{:.0f}'})
+
+                                    st.dataframe(styled_df,hide_index=True, width=725)
+                                with tab2:
+                                    showcols = ['Season','Level','Team','G','AB','Swing%','Chase%','SwStr%','GB%','FB%','BABIP','Pull%']
+                                    df_to_print = fg_stats[fg_stats['Season'].isin(['2025','2024','2023'])][showcols]
+                                    df_to_print = df_to_print[df_to_print['Level']=='MLB']
+                                    df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                    styled_df = df_to_print.style.format({'Swing%': '{:.3f}','Chase%': '{:.3f}','SwStr%': '{:.3f}',
+                                                                          'GB%': '{:.3f}', 'FB%': '{:.3f}', 'BABIP': '{:.3f}',
+                                                                          'Pull%': '{:.3f}'})
+
+                                    st.dataframe(df_to_print,hide_index=True, width=825)
+
+                                
+                                with tab3:
+                                    showcols = ['Season','Level','Team','G','AB','BBE','xBA','xSLG','xwOBA','Brl%','Hard%','EV','LA','MaxEV']
+                                    df_to_print = fg_stats[fg_stats['Season'].isin(['2025','2024','2023'])][showcols]
+                                    df_to_print = df_to_print[df_to_print['Level']=='MLB']
+                                    df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                    styled_df = df_to_print.style.format({'xBA': '{:.3f}','xSLG': '{:.3f}','xwOBA': '{:.3f}','Brl%': '{:.3f}',
+                                                                          'Hard%': '{:.3f}','EV': '{:.1f}','LA': '{:.1f}','MaxEV': '{:.1f}'})
+
+                                    st.dataframe(styled_df,hide_index=True, width=745)
+
+                                with tab4:
+                                    showcols = ['Season','Team','Level','G','AB','R','HR','RBI','SB','AVG','SLG','OPS','K%','BB%','wRC+']
+                                    df_to_print = fg_stats[showcols]
+                                    df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                    styled_df = df_to_print.style.format({'AVG': '{:.3f}','OBP': '{:.3f}','SLG': '{:.3f}',
+                                                                          'OPS': '{:.3f}','K%': '{:.3f}','BB%': '{:.3f}',
+                                                                          'wRC+': '{:.0f}'})
+
+                                    st.dataframe(styled_df,hide_index=True, width=775, height=280)
+                                with tab5:
+                                    plog = hitlogs[hitlogs['player_id']==mlbid][['game_date','level','team_abbrev','opp_abbrev','AB','H','R','HR','RBI','SB','2B','3B','SO','BB','CS','DKPts']]
+                                    plog = plog.rename({'team_abbrev': 'Team','opp_abbrev': 'Opp'}, axis=1)
+                                    st.dataframe(plog, hide_index=True, width=1000)
+
+                            else:
+                                player_level = 'MiLB'
+                                # Data
+                                psav = milbsav[milbsav['batter']==mlbid]
+                                ## GENERATE DATA FOR MLB PLAYERS
+                                tab1, tab2, tab3 = st.tabs(['Standard Data','Advanced','Player History'])
+                                
+                                with tab1:
+                                    showcols = ['Season','Team','Level','G','AB','R','HR','RBI','SB','AVG','SLG','OPS','K%','BB%','wRC+']
+                                    df_to_print = fg_stats[fg_stats['Season'].isin(['2025','2024','2023','2022'])][showcols]
+                                    df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                    df_to_print1 = df_to_print[df_to_print['Level'].isin(['MiLB','MLB'])]
+                                    styled_df = df_to_print.style.format({'AVG': '{:.3f}','OBP': '{:.3f}','SLG': '{:.3f}',
+                                                                          'OPS': '{:.3f}','K%': '{:.3f}','BB%': '{:.3f}',
+                                                                          'wRC+': '{:.0f}'})
+                                    styled_df1 = df_to_print1.style.format({'AVG': '{:.3f}','OBP': '{:.3f}','SLG': '{:.3f}',
+                                                                          'OPS': '{:.3f}','K%': '{:.3f}','BB%': '{:.3f}',
+                                                                          'wRC+': '{:.0f}'})
+
+
+                                    st.dataframe(styled_df1,hide_index=True, width=770)
+                                with tab2:
+                                    
+                                    show_fg = fg_stats[['Season','Team','Level','G','AB','wRC+','GB%','LD%','FB%','BABIP','Pull%']]
+                                    show_fg = show_fg[show_fg['Level'].isin(['MLB','MiLB'])]
+                                    
+                                    show_sav = psav[psav['Split']=='All'][['Year','Cont%','Swing%','Statcast BBE','EV 90']]
+                                    show_sav.columns=['Season','Cont%','Swing%','BBE','EV 90']
+                                    
+                                    df_to_print = pd.merge(show_fg, show_sav, on='Season',how='outer')
+                                    df_to_print = df_to_print[df_to_print['Season']!='2025']
+                                    styled_df = df_to_print.style.format({'GB%': '{:.3f}','wRC+': '{:.0f}','LD%': '{:.3f}','FB%': '{:.3f}',
+                                                                          'BABIP': '{:.3f}','Pull%': '{:.3f}','Cont%': '{:.3f}','Swing%': '{:.3f}',
+                                                                          'G': '{:.0f}','AB': '{:.0f}','BBE': '{:.0f}','EV 90': '{:.1f}'})
+
+                                    st.dataframe(styled_df, hide_index=True, width=825)
+
+                                
+                                with tab3:
+                                    showcols = ['Season','Team','Level','G','AB','R','HR','RBI','SB','AVG','SLG','OPS','K%','BB%','wRC+']
+                                    df_to_print = fg_stats[showcols]
+                                    df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                    styled_df = df_to_print.style.format({'AVG': '{:.3f}','OBP': '{:.3f}','SLG': '{:.3f}',
+                                                                          'OPS': '{:.3f}','K%': '{:.3f}','BB%': '{:.3f}',
+                                                                          'wRC+': '{:.0f}'})
+
+                                    st.dataframe(styled_df,hide_index=True, width=855, height=300)
                             
+                            
+
+                        elif player_position == 'Pitcher':
+                            fg_stats = scrapeFG_pitchers(fgid)
+                            fg_stats['K%'] = pd.to_numeric(fg_stats['K%'])
+                            fg_stats['BB%'] = pd.to_numeric(fg_stats['BB%'])
+                            fg_stats['K-BB%'] = fg_stats['K%']-fg_stats['BB%']
+                            fg_stats['G'] = pd.to_numeric(fg_stats['G'])
+                            fg_stats['GS'] = pd.to_numeric(fg_stats['GS'])
+                            fg_stats['IP'] = pd.to_numeric(fg_stats['IP'])
+                            fg_stats['SO'] = pd.to_numeric(fg_stats['SO'])
+                            fg_stats['BB'] = pd.to_numeric(fg_stats['BB'])
+                            fg_stats['W'] = pd.to_numeric(fg_stats['W'])
+                            fg_stats['ERA'] = pd.to_numeric(fg_stats['ERA'])
+                            fg_stats['WHIP'] = pd.to_numeric(fg_stats['WHIP'])
+                            fg_stats['SIERA'] = pd.to_numeric(fg_stats['SIERA'], errors='ignore')
+                            #fg_stats['SIERA'] = fg_stats['SIERA'].str[0:]
+
+                            stat_recent = fg_stats[fg_stats['Season'].isin(['2023','2024','2025'])]
+                            stat_recent['Season'] = stat_recent['Season'].astype(int)
+                            most_recent = stat_recent[stat_recent['Season']==np.max(stat_recent['Season'])]
+
+                            level_assign = most_recent.sort_values(by='IP',ascending=False)['Level'].iloc[0]                            
+
+                            tab1, tab2, tab3, tab4, tab5 = st.tabs(['Standard Data','Advanced','Pitch Mix','Player History', 'Game Log'])
+
                             with tab1:
-                                fg_data = scrapeFG_pitchers(fgid) if check_pos == 'Pitcher' else scrapeFG_hitters(fgid)
-                                mlb_g = np.sum(fg_data[fg_data['Level'] == 'MLB']['G'])
-                                data24 = fg_data[(fg_data['Season'].isin(['2022', '2023', '2024', '2025'])) & 
-                                               (fg_data['Level'].isin(['MLB'] if mlb_g >= 5 else ['MiLB', 'MLB']))]
-                                data24 = data24.sort_values(by='Season', ascending=False)
-                                st.dataframe(data24, hide_index=True, use_container_width=True)
-
+                                show_cols = ['Season','Team','Level','G','GS','IP','SO','BB','W','ERA','WHIP','K%','BB%','K-BB%','SIERA']
+                                df_to_print = fg_stats[show_cols]
+                                df_to_print = df_to_print[df_to_print['Level'].isin(['MiLB','MLB'])]
+                                df_to_print = df_to_print[df_to_print['Season'].isin(['2025','2024','2023'])]
+                                df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                styled_df = df_to_print.style.format({'G': '{:.0f}',
+                                                                      'GS': '{:.0f}',
+                                                                      'IP': '{:.0f}',
+                                                                      'SO': '{:.0f}',
+                                                                      'BB': '{:.0f}',
+                                                                      'W': '{:.0f}',
+                                                                      'ERA': '{:.2f}',
+                                                                      'WHIP': '{:.2f}',
+                                                                      'K%': '{:.3f}',
+                                                                      'BB%': '{:.3f}',
+                                                                      'K-BB%': '{:.3f}',
+                                                                      'SIERA': '{:.2f}'})
+                                st.dataframe(styled_df,hide_index=True, width=790)
+                            
                             with tab2:
-                                adv_data = loadAdvData(mlbid)
-                                
-                                adv_data['ISO'] = adv_data['SLG'] - adv_data['AVG']
-                                showdf = adv_data[['Year', 'Level', 'Split', 'PA_flag', 'AVG', 'OBP', 'SLG', 'ISO', 'IsHomer', 'K%', 'BB%', 'Cont%']]
-                                showdf = showdf[showdf['Split'] != 'All'].rename({'PA_flag': 'PA', 'IsHomer': 'HR'}, axis=1)
-                                player_level = 'Majors' if showdf.groupby('Level')['PA'].sum().get('MLB', 0) > 99 else 'Minors'
-                                showdf = showdf[showdf['Level'] == ('MLB' if player_level == 'Majors' else 'Minors')]
-                                
-
-                                styled_df = showdf.style.format({'PA': '{:.0f}', 'HR': '{:.0f}', 'AVG': '{:.3f}', 'OBP': '{:.3f}', 
-                                                                'SLG': '{:.3f}', 'ISO': '{:.3f}', 'K%': '{:.3f}', 'BB%': '{:.3f}', 'Cont%': '{:.3f}'})
-                                st.dataframe(styled_df, hide_index=True, use_container_width=True)
+                                show_cols = ['Season','Team','Level','G','GS','IP','K%','BB%','SwStr%','SIERA','xFIP','xERA','Zone%','LOB%']
+                                df_to_print = fg_stats[show_cols]
+                                df_to_print = df_to_print[df_to_print['Level'].isin(['MiLB','MLB'])]
+                                df_to_print = df_to_print[df_to_print['Season'].isin(['2025','2024','2023'])]
+                                df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                styled_df = df_to_print.style.format({'G': '{:.0f}',
+                                                                      'GS': '{:.0f}',
+                                                                      'IP': '{:.0f}',
+                                                                      'SIERA': '{:.2f}',
+                                                                      'xFIP': '{:.2f}',
+                                                                      'xERA': '{:.2f}',
+                                                                      'K%': '{:.3f}',
+                                                                      'BB%': '{:.3f}',
+                                                                      'SwStr%': '{:.3f}',
+                                                                      'Zone%': '{:.3f}',
+                                                                      'LOB%': '{:.3f}', })
+                                try:
+                                    st.dataframe(styled_df,hide_index=True, width=790)
+                                except:
+                                    st.dataframe(df_to_print,hide_index=True, width=790)
+                            
                             with tab3:
-                                #st.markdown("<h4>Statcast</h4>", unsafe_allow_html=True)
-                                launch_profile = adv_data[['Year', 'Level', 'Statcast BBE','Brl%','xwOBA','xBA', 'GB%', 'LD%', 'FB%', 'SwtSpot%', 'EV 90']].rename({'Statcast BBE': 'BBE'}, axis=1).drop_duplicates()
-                                launch_profile = launch_profile[launch_profile['Level'] == ('MLB' if player_level == 'Majors' else 'Minors')]
-                                styled_df = launch_profile.style.format({'BBE': '{:.0f}', 'GB%': '{:.3f}', 'LD%': '{:.3f}', 'FB%': '{:.3f}', 
-                                                                        'Brl%': '{:.3f}', 'SwtSpot%': '{:.3f}','xwOBA': '{:.3f}', 'xBA': '{:.3f}',  'EV 90': '{:.1f}'})
-                                st.dataframe(styled_df, hide_index=True, use_container_width=True)
+                                if level_assign == 'MLB':
+                                    pmix = pmix_mlb[pmix_mlb['pitcher']==mlbid]
+                                else:
+                                    pmix = pmix_milb[pmix_milb['pitcher']==mlbid]
+                                
+                                show_df = pmix[['Season','pitch_type','PC','Velo','SwStr%','Strike%','Ball%','GB%']]
+                                
+                                show_df = show_df[show_df['Season']==np.max(show_df['Season'])]
+                                #show_df['PC'] = pd.to_numeric(show_df['PC'])
+                                show_df = show_df.sort_values(by='PC',ascending=False)
+                                styled_df = show_df.style.format({'PC': '{:.0f}', 'Velo': '{:.1f}', 'SwStr%': '{:.3f}', 'Strike%': '{:.3f}', 'Ball%': '{:.3f}', 'GB%': '{:.3f}'})
+                                st.dataframe(styled_df,hide_index=True,width=490)
+
 
                             with tab4:
-                                gamelog = getGameLogs(int(mlbid))
-                                st.dataframe(gamelog, hide_index=True, use_container_width=True)
+                                show_cols = ['Season','Team','Level','G','GS','IP','SO','BB','W','ERA','WHIP','K%','BB%','K-BB%','SIERA']
+                                df_to_print = fg_stats[show_cols]
+                                df_to_print = df_to_print.sort_values(by='Season',ascending=False)
+                                styled_df = df_to_print.style.format({'G': '{:.0f}',
+                                                                      'GS': '{:.0f}',
+                                                                      'IP': '{:.0f}',
+                                                                      'SO': '{:.0f}',
+                                                                      'BB': '{:.0f}',
+                                                                      'W': '{:.0f}',
+                                                                      'ERA': '{:.2f}',
+                                                                      'WHIP': '{:.2f}',
+                                                                      'K%': '{:.3f}',
+                                                                      'BB%': '{:.3f}',
+                                                                      'K-BB%': '{:.3f}',
+                                                                      'SIERA': '{:.2f}'})
+                                st.dataframe(styled_df,hide_index=True, width=800, height=350)
+                            
+                            with tab5:
+                                p_log = pitchlogs[pitchlogs['player_id']==mlbid]
+                                p_log = p_log[['game_date','level','team_abbrev','opp_abbrev','G','GS','IP','H','ER','SO','BB','HR','DKPts']]
+                                p_log = p_log.rename({'game_date': 'Date', 'team_abbrev': 'Team','opp_abbrev': 'Opp'},axis=1)
+                                styled_df = p_log.style.format({'G': '{:.0f}','GS': '{:.0f}','IP': '{:.1f}','H': '{:.0f}','SO': '{:.0f}',
+                                                                'BB': '{:.0f}','HR': '{:.0f}','DKPts': '{:.1f}'})
+
+                                st.dataframe(styled_df,hide_index=True, width=800, height=200)
+
+
+
+                        else:
+                            st.write('No position found')
+
+                if player_position == 'Hitter':
+
+                    st.markdown("<center><h4>JA Model Skills Data</h4></center>", unsafe_allow_html=True)
+                    #st.markdown("<center><i>black line on gauge represents league average</center>", unsafe_allow_html=True)
+                    pskills = hskills[hskills['SAVID']==mlbid][['K%','BB%','Brl%','SBAtt%','SBSuccess%']]
+                    if len(pskills)!=1:
+                        have_skills = 'N'
+                    else:
+                        have_skills = 'Y'
+                    
+                    p_fscores = fscores_h[fscores_h['Name']==playerName]
+                    
+                    if len(p_fscores)!=1:
+                        have_fscore = 'N'
+                    else:
+                        have_fscore = 'Y'
+                        p_fcont = p_fscores['fContact'].iloc[0]
+                        p_fdisc = p_fscores['fDiscipline'].iloc[0]
+                        p_fpower = p_fscores['fPower'].iloc[0]
+                        p_fspeed = p_fscores['fSpeed'].iloc[0]
                         
-                        st.divider()  # Adds a horizontal rule
-                        
-                        col1, col2 = st.columns([1,2])
-                        
+                    if have_skills == 'Y':
+                        col1, col2, col3, col4 = st.columns([1, 1, 1, 1], gap="small")
                         with col1:
-                            fscores = loadFScores(player_data['fullName'])
-                            fContact = fscores['fContact'].iloc[0] if len(fscores) > 0 else 0
-                            fPower = fscores['fPower'].iloc[0] if len(fscores) > 0 else 0
-                            fSpeed = fscores['fSpeed'].iloc[0] if len(fscores) > 0 else 0
-                            fDiscipline = fscores['fDiscipline'].iloc[0] if len(fscores) > 0 else 0
-                            stats_fig = create_stat_gauges(fContact, fPower, fSpeed, fDiscipline)
-                            st.plotly_chart(stats_fig, use_container_width=True)
+                            player_k = pskills['K%'].iloc[0]
+                            league_k = .225
+                            stat_name = 'K%'
+                            create_gauge_chart(stat_name, player_k, league_k)
                         with col2:
-                            st.markdown("<h4 style='color: black; font-weight: 700;'>2025 JA Projection</h4>", unsafe_allow_html=True)
+                            player_bb = pskills['BB%'].iloc[0]
+                            league_bb = .079
+                            stat_name = 'BB%'
+                            create_gauge_chart(stat_name, player_bb, league_bb)
+                        with col3:
+                            player_brl = pskills['Brl%'].iloc[0]
+                            league_brl = .078
+                            stat_name = 'Brl%'
+                            create_gauge_chart(stat_name, player_brl, league_brl)
+                        with col4:
+                            player_sb = pskills['SBAtt%'].iloc[0]
+                            league_sb = .107
+                            stat_name = 'SBAtt%'
+                            create_gauge_chart(stat_name, player_sb, league_sb)
+                    
+                    if have_fscore == 'Y':
+                        st.markdown("<center><h4>Tim Kanak fScores</h4></center>", unsafe_allow_html=True)
+                        col1, col2, col3, col4 = st.columns([1, 1, 1, 1], gap="small")
+                        with col1:
+                            create_gauge_chart('fContact', p_fcont, 100)
+                        with col2:
+                            create_gauge_chart('fDiscipline', p_fdisc, 100)
+                        with col3:
+                            create_gauge_chart('fPower', p_fpower, 100)
+                        with col4:
+                            create_gauge_chart('fSpeed', p_fspeed, 100)
 
-                            if check_pos == 'Hitter':
-                                playerproj = getProjection(check_pos, player_data['fullName'])
-                                if len(playerproj)<1:
-                                    st.write('No projection to display')
-                                else:
-                                    st.dataframe(playerproj,hide_index=True)
-                            else:
-                                playerproj = getProjection(check_pos, player_data['fullName'])
-                                if len(playerproj)<1:
-                                    st.write('No projection to display')
-                                else:
-                                    st.dataframe(playerproj,hide_index=True)
-
-                        st.markdown("</div>", unsafe_allow_html=True)
+                ###
                 else:
-                    st.error("Unable to fetch player information")
-    else:
-        st.info("Enter a player name or MLBID in the sidebar to get started.")
+                    st.markdown("<center><h4>JA Model Skills Projection & Tim Kanak fScores</h4></center>", unsafe_allow_html=True)
+                    #st.markdown("<center><i>black line on gauge represents league average</center>", unsafe_allow_html=True)
+                    pskills = pitchskills[pitchskills['SAVID']==mlbid][['K%','BB%']]
+                    if len(pskills)!=1:
+                        have_skills = 'N'
+                    else:
+                        have_skills = 'Y'
+                    
+                    p_fscores = fscores_pitch[fscores_pitch['Name']==playerName]
+                    
+                    if len(p_fscores)!=1:
+                        have_fscore = 'N'
+                    else:
+                        have_fscore = 'Y'
+                        p_fdur = p_fscores['fPDurability'].iloc[0]
+                        fStuff = p_fscores['fStuff'].iloc[0]
+                        fControl = p_fscores['fControl'].iloc[0]
+                        fERA = p_fscores['fERA'].iloc[0]
+                        
+                    if have_skills == 'Y':
+                        col1, col2, col3, col4, col5, col6 = st.columns([1, 1, 1, 1, 1, 1], gap="small")
+                        with col1:
+                            player_k = pskills['K%'].iloc[0]
+                            league_k = .225
+                            stat_name = 'K%'
+                            create_gauge_chart(stat_name, player_k, league_k)
+                        with col2:
+                            player_bb = pskills['BB%'].iloc[0]
+                            league_bb = .079
+                            stat_name = 'BB%'
+                            create_gauge_chart(stat_name, player_bb, league_bb)
+                        
+                        with col3:
+                            create_gauge_chart('fContact', p_fdur, 100)
+                        with col4:
+                            create_gauge_chart('fStuff', fStuff, 100)
+                        with col5:
+                            create_gauge_chart('fControl', fControl, 100)
+                        with col6:
+                            create_gauge_chart('fERA', fERA, 100)    
+
+            
+            
 
 if __name__ == "__main__":
     main()
