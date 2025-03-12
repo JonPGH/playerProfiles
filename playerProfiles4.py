@@ -27,8 +27,8 @@ pitchlogs = pd.read_csv(f'{file_path}/pitdb25.csv').sort_values(by='game_date', 
 ids_zip = pd.read_csv(f'{file_path}/zips_ids.csv')
 ids_zip['MLBID'] = ids_zip['MLBID'].astype(str)
 ids_zip['FGID'] = ids_zip['FGID'].astype(str)
-fscores_hit = pd.read_csv(f'{file_path}/fscoresHit.csv')
-fscores_pitch = pd.read_csv(f'{file_path}/fscoresPitch.csv')
+fscores_hit = pd.read_csv(f'{file_path}/fScoresHit.csv')
+fscores_pitch = pd.read_csv(f'{file_path}/fScoresPitch.csv')
 
 hskills = pd.read_csv(f'{file_path}/HitterSkillData.csv')
 pitchskills = pd.read_csv(f'{file_path}/PitcherSkillData.csv')
@@ -773,7 +773,7 @@ def main():
                             create_gauge_chart(stat_name, player_bb, league_bb)
                         
                         with col3:
-                            create_gauge_chart('fContact', p_fdur, 100)
+                            create_gauge_chart('fDurability', p_fdur, 100)
                         with col4:
                             create_gauge_chart('fStuff', fStuff, 100)
                         with col5:
